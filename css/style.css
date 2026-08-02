@@ -312,7 +312,7 @@ button{font-family:Archivo,sans-serif}
 .svc-row.active .arrow{color:var(--accent)}
 .svc-panel{position:sticky;top:100px}
 .svc-panel .thumb{position:relative;aspect-ratio:4/3;border-radius:14px;overflow:hidden;background:#161616;border:1px solid rgba(245,244,241,0.1)}
-.svc-panel img{width:100%;height:100%;object-fit:cover;transition:opacity .45s ease}
+.svc-panel img{width:100%;height:100%;object-fit:cover;transition:opacity .26s ease}
 .svc-panel .thumb-fade{position:absolute;inset:0;background:linear-gradient(to top,rgba(10,10,10,0.6),transparent 55%)}
 .svc-panel-body{margin-top:22px}
 .svc-panel-body .t{font-size:clamp(24px,2.6vw,34px);text-transform:uppercase;letter-spacing:.3px;color:var(--accent);margin-bottom:12px}
@@ -388,3 +388,332 @@ label{font-size:11px;letter-spacing:2px;font-weight:700;color:rgba(245,244,241,0
 @keyframes wa-pulse{0%{transform:scale(.9);opacity:.6}100%{transform:scale(1.35);opacity:0}}
 @media (prefers-reduced-motion: reduce){ .whatsapp-fab::before{animation:none;display:none} }
 @media (max-width:480px){ .whatsapp-fab{width:52px;height:52px} .whatsapp-fab svg{width:26px;height:26px} }
+
+/* ===========================================================================
+   MOTION POLISH
+   Appended pass — overrides the rules above by source order, so the original
+   declarations stay readable in place. Principles: animate only transform and
+   opacity, never `transition: <time>` on its own (that is `all`), ease-out for
+   anything entering, press feedback on everything pressable, and no hover
+   effects on touch.
+   =========================================================================== */
+
+:root{
+  --ease-out:cubic-bezier(.23,1,.32,1);
+  --ease-in-out:cubic-bezier(.77,0,.175,1);
+  /* Gentle overshoot — bounce stays subtle, reserved for one-shot moments. */
+  --ease-back:cubic-bezier(.34,1.35,.64,1);
+  --dur-press:.14s;
+  --dur-fast:.2s;
+  --dur-base:.26s;
+  --dur-slow:.4s;
+}
+
+/* --- Pin bare shorthands to explicit properties --------------------------- */
+/* `transition:.25s` animates every animatable property, layout ones included. */
+.btn-pill{transition:transform .2s var(--ease-out),box-shadow .2s var(--ease-out)}
+.btn-outline{transition:transform .2s var(--ease-out),border-color .2s ease,background-color .2s ease,color .2s ease}
+.filter-btn{transition:transform .2s var(--ease-out),background-color .2s ease,border-color .2s ease,color .2s ease}
+.footer-col a{transition:color .2s ease,opacity .2s ease}
+.svc-row .arrow{transition:color .3s ease,transform .3s var(--ease-out)}
+.svc-row{transition:padding-left .3s var(--ease-out),background-color .3s ease}
+.nav-link{transition:color .2s ease}
+
+/* --- Press feedback ------------------------------------------------------- */
+/* Instant confirmation that the interface heard the press. */
+.btn-pill:active,
+.btn-outline:active,
+.filter-btn:active,
+.portfolio-card:active,
+.filmstrip-card:active{transform:scale(.97)}
+.btn-pill.large:active{transform:scale(.98)}
+.nav-toggle:active span{opacity:.6}
+
+/* --- Hover only where a real pointer exists ------------------------------- */
+@media (hover:hover) and (pointer:fine){
+  .svc-row:hover .arrow{transform:translateX(4px)}
+  .footer-col a:hover{opacity:1}
+}
+
+/* A tap on touch latches :hover on, leaving cards stuck mid-zoom. */
+@media (hover:none){
+  .btn-pill:hover{transform:none;box-shadow:none}
+  .portfolio-card:hover img,
+  .filmstrip-card:hover img,
+  .team-card:hover img{transform:none}
+}
+
+/* --- Hero entrance stagger ------------------------------------------------ */
+/* 60ms apart: the eye reads it as one cascade, not four separate arrivals. */
+.hero-content .lede[data-reveal]{transition-delay:60ms}
+.hero-content .hero-ctas[data-reveal]{transition-delay:120ms}
+.hero-liquid-hint{
+  opacity:0;
+  animation:dg-hint-in .8s var(--ease-out) .9s forwards;
+}
+@keyframes dg-hint-in{to{opacity:1}}
+
+/* --- Reduced motion ------------------------------------------------------- */
+/* Fewer and gentler, not zero: opacity still carries the meaning. */
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{
+    animation-duration:.01ms !important;
+    animation-iteration-count:1 !important;
+    transition-duration:.15s !important;
+    scroll-behavior:auto !important;
+  }
+  .hero-line > span{transform:none !important}
+  [data-reveal]{transform:none !important}
+  .btn-pill:hover,.portfolio-card:hover img,.filmstrip-card:hover img{transform:none}
+}
+
+/* ===========================================================================
+   STATE BRIDGES
+   Second pass. Everything above is corrective — this block is additive, and
+   only covers places where state changed by teleporting: an element went from
+   absent to present with nothing in between.
+
+   All of it is CSS-only. `transition-behavior:allow-discrete` lets `display`
+   participate in a transition, and `@starting-style` supplies the "before"
+   frame, so the existing `hidden` toggles in JS keep working untouched. In
+   browsers without support the result is exactly today's behaviour: instant.
+   =========================================================================== */
+
+/* --- Lightbox (portfolio) ------------------------------------------------- */
+/* Backdrop fades; the figure scales from .96 — never from 0, nothing in the
+   real world appears out of nothing. Origin stays centre: it is a modal, not
+   a popover, so it is not anchored to any trigger. */
+.lightbox{
+  opacity:1;
+  transition:opacity var(--dur-fast) ease,display var(--dur-fast) allow-discrete;
+}
+.lightbox[hidden]{opacity:0}
+@starting-style{
+  .lightbox:not([hidden]){opacity:0}
+}
+
+.lb-figure{
+  opacity:1;transform:scale(1);
+  transition:opacity var(--dur-base) var(--ease-out),transform var(--dur-base) var(--ease-out);
+}
+.lightbox[hidden] .lb-figure{opacity:0;transform:scale(.96)}
+@starting-style{
+  .lightbox:not([hidden]) .lb-figure{opacity:0;transform:scale(.96)}
+}
+
+/* --- Mobile menu ---------------------------------------------------------- */
+/* Was a bare display:none <-> flex swap, the harshest change on the site. */
+@media (max-width:640px){
+  .nav-links{
+    opacity:0;transform:translateY(-8px);
+    transition:opacity .22s var(--ease-out),transform .22s var(--ease-out),display .22s allow-discrete;
+  }
+  .nav.menu-open .nav-links{opacity:1;transform:translateY(0)}
+  @starting-style{
+    .nav.menu-open .nav-links{opacity:0;transform:translateY(-8px)}
+  }
+}
+
+/* --- Contact success ------------------------------------------------------ */
+/* Seen once, if ever — the only place on this site with a delight budget. */
+.thanks:not([hidden]){animation:dg-thanks-in var(--dur-slow) var(--ease-out) both}
+.thanks:not([hidden]) .thanks-check{animation:dg-check-in .42s var(--ease-back) .09s both}
+@keyframes dg-thanks-in{from{opacity:0;transform:translateY(10px)}}
+@keyframes dg-check-in{from{opacity:0;transform:scale(.8)}}
+
+/* --- Filtered grid stagger ------------------------------------------------ */
+/* Cards already reveal; they just all arrive on the same frame. 40ms apart
+   reads as one cascade. Capped at 8 so a 20-result filter never crawls. */
+.portfolio-grid .grid > [data-reveal]:nth-child(2){transition-delay:40ms}
+.portfolio-grid .grid > [data-reveal]:nth-child(3){transition-delay:80ms}
+.portfolio-grid .grid > [data-reveal]:nth-child(4){transition-delay:120ms}
+.portfolio-grid .grid > [data-reveal]:nth-child(5){transition-delay:160ms}
+.portfolio-grid .grid > [data-reveal]:nth-child(6){transition-delay:200ms}
+.portfolio-grid .grid > [data-reveal]:nth-child(7){transition-delay:240ms}
+.portfolio-grid .grid > [data-reveal]:nth-child(n+8){transition-delay:280ms}
+
+/* --- Remaining press feedback --------------------------------------------- */
+/* Small circular targets need a deeper scale than a wide pill to read. */
+.strip-arrow:active:not(:disabled),
+.lb-btn:active,
+.whatsapp-fab:active{transform:scale(.92)}
+.contact-form button[type="submit"]:active:not(:disabled),
+.thanks button:active{transform:scale(.97)}
+.lb-btn{transition:transform var(--dur-press) var(--ease-out),background-color .25s ease,border-color .25s ease}
+.strip-arrow{transition:transform var(--dur-press) var(--ease-out),background-color .25s ease,border-color .25s ease,opacity .25s ease}
+.whatsapp-fab{transition:transform var(--dur-press) var(--ease-out),box-shadow .25s ease}
+.contact-form button[type="submit"]{transition:transform var(--dur-press) var(--ease-out),box-shadow .25s ease}
+.thanks button{transition:transform var(--dur-press) var(--ease-out),border-color .2s ease,background-color .2s ease}
+
+/* Grayscale removal is a paint-bound filter animation; keep it off touch,
+   where it can never be triggered deliberately anyway. */
+@media (hover:none){
+  .client-logo{transition:none}
+  .client-logo:hover{filter:grayscale(1);opacity:.75;transform:none}
+  .whatsapp-fab:hover{transform:none;box-shadow:0 10px 30px rgba(234,29,44,0.45)}
+}
+
+/* --- Reduced motion ------------------------------------------------------- */
+/* The bridges survive as opacity-only: the meaning is "this changed", and
+   opacity still carries it without any travel or scale. */
+@media (prefers-reduced-motion:reduce){
+  .lb-figure,
+  .lightbox[hidden] .lb-figure{transform:none !important}
+  .nav-links{transform:none !important}
+  .portfolio-grid .grid > [data-reveal]{transition-delay:0ms !important}
+}
+
+/* ===========================================================================
+   DESIGN PASS
+   Third block. Surface, typography and accessibility — no layout rewrites.
+   =========================================================================== */
+
+/* --- Focus rings ---------------------------------------------------------- */
+/* The single most serious gap on the site: nothing had a visible focus state,
+   and `outline:none` on inputs (line 333) actively removed the browser's.
+   Keyboard users had no idea where they were. :focus-visible only shows for
+   keyboard navigation, so mouse users never see a ring on click. */
+:where(a,button,[tabindex]):focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible{
+  outline:2px solid var(--fg);
+  outline-offset:3px;
+  border-radius:3px;
+}
+/* Bone-white and red sections need the inverse, or the ring disappears. */
+.work-preview :focus-visible,
+.values :focus-visible{outline-color:var(--bg)}
+/* The pill sits on accent red; a white ring reads there, but give it room. */
+.btn-pill:focus-visible{outline-offset:4px}
+
+/* --- Film grain ----------------------------------------------------------- */
+/* Flat dark surfaces read as sterile. A fixed grain layer breaks the digital
+   flatness and unifies the dark sections with the bone-white one — the same
+   texture crosses both, so the palette jump feels authored. Inline SVG, so no
+   network request and nothing to 404. */
+body::after{
+  content:'';
+  position:fixed;inset:0;
+  z-index:2001; /* above the lightbox (2000); purely decorative, never hit-tested */
+  pointer-events:none;
+  opacity:.038;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* --- Viewport units ------------------------------------------------------- */
+/* 100vh includes the iOS Safari URL bar, so the hero jumped as it collapsed.
+   Declared after the 100vh rule, so browsers without dvh keep the fallback. */
+.hero{min-height:100dvh}
+
+/* --- Typography polish ---------------------------------------------------- */
+/* balance for headings (stops a single orphaned word on the last line),
+   pretty for body copy (same, without re-balancing long paragraphs). */
+h1,h2,h3,
+.thumb-info .t,.work-card .t,.value-card .t,.cta-box h3{text-wrap:balance}
+p,.lede,.thumb-info .s,.work-card .s,.stat .lbl{text-wrap:pretty}
+
+/* Figures line up in columns instead of drifting — matters most in .stats,
+   where four numbers sit in a row, and in the timeline years. */
+.stat .num,.timeline-item .year,.thumb-num,.value-card .num,.contact-block .phones{
+  font-variant-numeric:tabular-nums;
+}
+
+/* --- Utility classes replacing inline styles ------------------------------ */
+.accent{color:var(--accent)}
+.who-inner{position:relative}
+.who-section h2{max-width:15ch}
+.services-preview{padding:clamp(20px,3vw,40px) 0 clamp(72px,10vw,130px)}
+.services-head .section-tag,
+.work-preview-head .section-tag{margin-bottom:16px}
+.footer-col .site-url{color:var(--accent);opacity:1}
+.footer-bottom .tagline{letter-spacing:2px}
+
+/* ===========================================================================
+   TYPE SYSTEM
+   Fourth block. Typography only — not one word of copy changes.
+
+   Two faces, both already authoritative here and both kept:
+     Anton   — display. Ships ONE weight (400).
+     Archivo — text. Real weights 400–900.
+
+   Role ladder:  display > opener > subhead > lede > body > label > data
+   =========================================================================== */
+
+:root{
+  /* Tracking is em-based so the letterfit is identical at every clamp step.
+     The old values were absolute px, which meant one rule produced -0.019em on
+     a phone and -0.0067em on a desktop — the headline changed character between
+     breakpoints, and the largest type on the site was the loosest. Display type
+     tightens as it grows; it does not loosen. */
+  --track-display:-.022em;
+  --track-opener:-.016em;
+  --track-subhead:-.01em;
+  --track-label:.3em;
+}
+
+/* Anton ships a single 400 weight. h1/h2/h3 inherit `bold` from the UA
+   stylesheet, so every headline was rendering as a browser-synthesised smear
+   of the real letterforms — while .stat .num (a div) got the genuine 400.
+   Same font, two renderings. font-synthesis keeps it pinned if any later rule
+   asks for bold again. */
+.anton{
+  font-weight:400;
+  font-synthesis:none;
+}
+
+/* --- Display -------------------------------------------------------------- */
+.hero h1,
+.page-hero h1{letter-spacing:var(--track-display)}
+
+/* --- Section openers ------------------------------------------------------ */
+.section h2,
+.services-head h2,
+.work-preview-head h2,
+.team-head h2,
+.footer-cta h2,
+.values h2,
+.story-grid h2,
+.thanks h2{letter-spacing:var(--track-opener)}
+
+/* Same role, two accidental sizes (66px vs the 68px its two siblings use). */
+.team-head h2{font-size:clamp(34px,5vw,68px)}
+
+/* --- Subheads and card titles --------------------------------------------- */
+.cta-box h3,
+.thumb-info .t,
+.work-card .t,
+.portfolio-card .info .t,
+.value-card .t,
+.timeline-item .t,
+.team-card .name,
+.lb-title{letter-spacing:var(--track-subhead)}
+
+/* --- Labels --------------------------------------------------------------- */
+/* One role, previously set at .333em (12px tags) or .227em (11px footer and
+   contact labels) — inconsistent, and backwards: the smaller size had the
+   tighter fit when small caps need more air, not less.
+   .eyebrow stays out on purpose: it is a long string inside a bordered pill,
+   where tracking is constrained by the container, not by the role. */
+.section-tag .label,
+.clients .label,
+.footer-cta .label,
+.footer-col .label,
+.contact-block .label,
+.page-hero .kicker,
+.timeline > .label{letter-spacing:var(--track-label)}
+
+/* --- Light on dark -------------------------------------------------------- */
+/* Bone white on near-black blooms optically and closes up the counters. Body
+   copy takes a hair of positive tracking to hold them open; the display sizes
+   do not need it, being large enough to resolve on their own. */
+.lede,
+.who-copy p,
+.story-grid p,
+.svc-panel-body p{letter-spacing:.005em}
+
+/* --- Data ----------------------------------------------------------------- */
+/* The one place the display face carries information rather than voice.
+   Tabular figures are already set in the DESIGN PASS block above. */
+.stat .num,
+.timeline-item .year{letter-spacing:var(--track-opener)}

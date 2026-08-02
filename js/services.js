@@ -72,12 +72,18 @@
   var rotTimer = null, imgIdx = 0;
   var reducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  function fadeTo(src) {
+  // Must match the opacity transition on .svc-panel img in style.css.
+  var FADE_MS = 260;
+
+  // Fade out, swap once the image is off-screen, fade back in. `onSwap` runs
+  // at the midpoint so panel text changes with the image, not before it.
+  function fadeTo(src, onSwap) {
     svcImg.style.opacity = '0';
     setTimeout(function () {
       svcImg.src = src;
+      if (onSwap) onSwap();
       requestAnimationFrame(function () { svcImg.style.opacity = '1'; });
-    }, 460);
+    }, FADE_MS);
   }
 
   function startRotation() {
@@ -97,13 +103,10 @@
     imgIdx = 0;
     rows.forEach(function (r, idx) { r.classList.toggle('active', idx === i); });
     placePanel();
-    svcImg.style.opacity = '0';
-    requestAnimationFrame(function () {
-      svcImg.src = data[i].imgs[0];
+    fadeTo(data[i].imgs[0], function () {
       svcImg.alt = data[i].title;
       svcTitle.textContent = data[i].title;
       svcDesc.textContent = data[i].desc;
-      requestAnimationFrame(function () { svcImg.style.opacity = '1'; });
     });
     startRotation();
   }

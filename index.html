@@ -21,6 +21,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/liquid-hero.css">
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -42,12 +43,12 @@
 <main id="main">
   <!-- HERO -->
   <header class="hero">
-    <div class="hero-glow" aria-hidden="true"></div>
-    <div class="hero-img-wrap">
-      <img src="assets/hero.png" alt="Diagram Advertisement creative team portrait" width="520" height="520" loading="eager" fetchpriority="high">
-      <div class="hero-img-tint" aria-hidden="true"></div>
-      <div class="hero-img-border" aria-hidden="true"></div>
+    <div class="hero-liquid" data-liquid-hover data-src="assets/hero-liquid.png" data-resolution="5" data-cursor-size="0.45" data-cursor-power="0.7" data-distortion="0.4">
+      <img src="assets/hero-liquid.png" alt="Diagram Advertisement creative campaign still" width="1898" height="839" loading="eager" fetchpriority="high">
     </div>
+    <div class="hero-scrim" aria-hidden="true"></div>
+    <div class="hero-nav-fade" aria-hidden="true"></div>
+    <div class="hero-glow" aria-hidden="true"></div>
 
     <div class="hero-content">
       <div class="eyebrow" data-reveal>
@@ -56,7 +57,7 @@
       </div>
       <h1 class="anton">
         <span class="hero-line"><span data-line>Beyond</span></span>
-        <span class="hero-line"><span data-line>the <span style="color:var(--accent);">expected.</span></span></span>
+        <span class="hero-line"><span data-line>the <span class="accent">expected.</span></span></span>
       </h1>
       <p class="lede" data-reveal>
         We build brands, spark big ideas and push boundaries &mdash; from LED walls and 3D signage to full campaigns. 28 years of turning attention into results across every medium.
@@ -65,6 +66,11 @@
         <a href="/portfolio" class="btn-pill large">See Our Work <span aria-hidden="true">&#8594;</span></a>
         <a href="/contact" class="btn-outline">Book a Call</a>
       </div>
+    </div>
+
+    <div class="hero-liquid-hint" aria-hidden="true">
+      <span class="bar"></span>
+      Move your cursor across the frame
     </div>
   </header>
 
@@ -79,12 +85,12 @@
   <!-- WHO WE ARE -->
   <section class="section who-section">
     <div class="who-watermark anton" aria-hidden="true">1998</div>
-    <div style="position:relative;">
+    <div class="who-inner">
       <div class="section-tag" data-reveal>
         <span class="bar"></span>
         <span class="label">WHO WE ARE</span>
       </div>
-      <h2 class="anton" data-reveal style="max-width:15ch;">We provide the <span style="color:var(--accent);">spark</span> &amp; fan the <span style="color:var(--accent);">flames</span> of big ideas.</h2>
+      <h2 class="anton" data-reveal>We provide the <span class="accent">spark</span> &amp; fan the <span class="accent">flames</span> of big ideas.</h2>
       <div class="who-copy" data-reveal>
         <p>Founded in Dubai in 1998, Diagram has helped companies large and small build their brands with creative advertising and highly integrated campaigns. In-house market research means we guide clients to success &mdash; not trial and error.</p>
         <p>We are truly integrated &mdash; passionate about developing brands and delivering informed, innovative work. We put our clients' goals first, investing every budget as if it were our own.</p>
@@ -99,10 +105,10 @@
   </section>
 
   <!-- SERVICES PREVIEW -->
-  <section style="padding:clamp(20px,3vw,40px) 0 clamp(72px,10vw,130px);">
+  <section class="services-preview">
     <div class="services-head" data-reveal>
       <div>
-        <div class="section-tag" style="margin-bottom:16px;">
+        <div class="section-tag">
           <span class="bar"></span>
           <span class="label">WHAT WE DO</span>
         </div>
@@ -197,7 +203,7 @@
     <div class="inner">
       <div class="work-preview-head" data-reveal>
         <div>
-          <div class="section-tag" style="margin-bottom:16px;"><span class="label">SELECTED WORK</span></div>
+          <div class="section-tag"><span class="label">SELECTED WORK</span></div>
           <h2 class="anton">Brands we've<br>made loud.</h2>
         </div>
         <a href="/portfolio" class="link-underline">Full Portfolio &#8594;</a>
@@ -295,12 +301,12 @@
         <span>Ajman &mdash; Liwara 1</span>
         <span>P.O. Box 55745</span>
         <span>United Arab Emirates</span>
-        <span style="color:var(--accent);opacity:1;">diagramadvertismentllc.ae</span>
+        <span class="site-url">diagramadvertismentllc.ae</span>
       </div>
     </div>
     <div class="footer-bottom">
       <span>&copy; 1998&ndash;2026 Diagram Advertisement LLC. All rights reserved.</span>
-      <span style="letter-spacing:2px;">BEYOND THE EXPECTED.</span>
+      <span class="tagline">BEYOND THE EXPECTED.</span>
     </div>
   </div>
 </footer>
@@ -309,6 +315,7 @@
   <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M16.004 3C9.376 3 4 8.373 4 15c0 2.34.653 4.527 1.787 6.393L3 29l7.828-2.744A11.94 11.94 0 0 0 16.004 27C22.63 27 28 21.627 28 15S22.63 3 16.004 3Zm0 21.75c-1.97 0-3.8-.57-5.35-1.552l-.383-.24-4.646 1.628 1.55-4.53-.25-.39A9.71 9.71 0 0 1 5.75 15c0-5.65 4.6-10.25 10.254-10.25S26.25 9.35 26.25 15 21.658 24.75 16.004 24.75Zm5.6-7.66c-.307-.154-1.818-.897-2.1-.998-.282-.103-.487-.154-.692.154-.204.307-.792.998-.972 1.203-.179.205-.358.23-.665.077-.307-.154-1.296-.478-2.469-1.523-.912-.813-1.528-1.817-1.707-2.124-.179-.307-.019-.473.135-.626.139-.138.307-.358.46-.538.154-.18.205-.307.307-.512.103-.205.051-.384-.026-.538-.077-.154-.692-1.67-.949-2.287-.25-.6-.505-.519-.692-.529l-.59-.01c-.205 0-.538.077-.82.384-.282.307-1.076 1.05-1.076 2.563s1.102 2.973 1.256 3.178c.154.205 2.17 3.312 5.257 4.644.735.317 1.309.507 1.756.649.738.235 1.41.202 1.941.123.592-.088 1.818-.744 2.075-1.462.256-.717.256-1.332.179-1.462-.076-.13-.281-.205-.588-.359Z"/></svg>
 </a>
 
+<script src="js/liquid-hover.js"></script>
 <script src="js/main.js"></script>
 <script src="js/service-images.js"></script>
 <script src="js/home.js"></script>
