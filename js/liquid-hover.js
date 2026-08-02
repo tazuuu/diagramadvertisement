@@ -275,12 +275,67 @@
             return
         }
 
-        // Float render targets are required for the velocity/pressure fields.
-        if (!gl.getExtension("OES_texture_float")) {
+        // The velocity/pressure fields need a render target with more than 8
+        // bits per channel. Support for this is the single biggest portability
+        // trap on mobile: iOS Safari and plenty of Android GPUs advertise
+        // OES_texture_float (they can *sample* float textures) while being
+        // unable to *render* to one. Asking the extension is therefore not
+        // enough — we build a 1x1 target of each candidate format and keep the
+        // first one the driver reports as framebuffer-complete.
+        var floatExt = gl.getExtension("OES_texture_float")
+        var halfFloatExt = gl.getExtension("OES_texture_half_float")
+        var HALF_FLOAT = halfFloatExt ? halfFloatExt.HALF_FLOAT_OES : null
+
+        function canRenderTo(format, type) {
+            if (type === null || type === undefined) return false
+            var tex = gl.createTexture()
+            gl.bindTexture(gl.TEXTURE_2D, tex)
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+            gl.texImage2D(gl.TEXTURE_2D, 0, format, 1, 1, 0, format, type, null)
+            var fb = gl.createFramebuffer()
+            gl.bindFramebuffer(gl.FRAMEBUFFER, fb)
+            gl.framebufferTexture2D(
+                gl.FRAMEBUFFER,
+                gl.COLOR_ATTACHMENT0,
+                gl.TEXTURE_2D,
+                tex,
+                0
+            )
+            var ok =
+                gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE
+            gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+            gl.deleteFramebuffer(fb)
+            gl.deleteTexture(tex)
+            return ok
+        }
+
+        // Half-float first: it is enough precision for this simulation, and it
+        // is what mobile GPUs can actually render to. RGBA is more widely
+        // renderable than RGB, so it is the fallback within each type.
+        var candidates = [
+            { format: gl.RGBA, type: HALF_FLOAT, linear: "OES_texture_half_float_linear" },
+            { format: gl.RGB, type: HALF_FLOAT, linear: "OES_texture_half_float_linear" },
+            { format: gl.RGBA, type: floatExt ? gl.FLOAT : null, linear: "OES_texture_float_linear" },
+            { format: gl.RGB, type: floatExt ? gl.FLOAT : null, linear: "OES_texture_float_linear" },
+        ]
+        var target = null
+        for (var ci = 0; ci < candidates.length; ci++) {
+            if (canRenderTo(candidates[ci].format, candidates[ci].type)) {
+                target = candidates[ci]
+                break
+            }
+        }
+        if (!target) {
             container.removeChild(canvas)
             return
         }
-        gl.getExtension("OES_texture_float_linear")
+        // Without the matching linear extension the driver silently fails to
+        // filter, so fall back to NEAREST rather than rendering garbage.
+        var simFilter = gl.getExtension(target.linear) ? gl.LINEAR : gl.NEAREST
+
         gl.clearColor(0, 0, 0, 0)
 
         // Map the 0.1-1 authoring range onto the values the shaders expect.
@@ -373,11 +428,21 @@
             gl.activeTexture(gl.TEXTURE0)
             var texture = gl.createTexture()
             gl.bindTexture(gl.TEXTURE_2D, texture)
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, simFilter)
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, simFilter)
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
-            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, w, h, 0, gl.RGB, gl.FLOAT, null)
+            gl.texImage2D(
+                gl.TEXTURE_2D,
+                0,
+                target.format,
+                w,
+                h,
+                0,
+                target.format,
+                target.type,
+                null
+            )
 
             var fbo = gl.createFramebuffer()
             gl.bindFramebuffer(gl.FRAMEBUFFER, fbo)

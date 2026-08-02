@@ -132,6 +132,22 @@
   background: rgba(245, 244, 241, .3);
 }
 
+/* A phone has no hover — the effect only responds to a deliberate drag, so on
+   touch the invitation has to name the gesture that actually works. */
+.hero-liquid-hint .hint-touch {
+  display: none;
+}
+
+@media (hover: none) {
+  .hero-liquid-hint .hint-pointer {
+    display: none;
+  }
+
+  .hero-liquid-hint .hint-touch {
+    display: inline;
+  }
+}
+
 /* No GPU, no texture, or a tainted source — the hero is a still frame, so
    don't invite an interaction that no longer exists. */
 .hero-liquid.is-static ~ .hero-liquid-hint {
@@ -156,8 +172,16 @@
       );
   }
 
+  /* The hint used to be hidden here. It is the only thing telling a phone user
+     the hero responds to touch at all, so it stays — just tighter. */
   .hero-liquid-hint {
-    display: none;
+    font-size: 10px;
+    letter-spacing: 1.8px;
+    gap: 9px;
+  }
+
+  .hero-liquid-hint .bar {
+    width: 22px;
   }
 }
 
