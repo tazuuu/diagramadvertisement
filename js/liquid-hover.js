@@ -30,6 +30,7 @@
     var CANVAS_OVERSCAN = 1.2 // canvas is 120% of the container
     var INNER_SCALE = 1 / CANVAS_OVERSCAN // 0.8333... - image occupies the centre
     var MAX_DPR = 2
+    var IMG_EDGE_FADE = 0.07 // softness of the image border when zoomed out
     var PRESSURE_ITERATIONS = 16
     var VELOCITY_DISSIPATION = 0.97
     var INK_DISSIPATION = 0.98
@@ -179,6 +180,8 @@
         "uniform vec2 u_point;",
         "uniform float u_canvas_scale;",
         "uniform float u_inner_scale;",
+        "uniform float u_img_zoom;",
+        "uniform float u_img_fade;",
 
         // Canvas UV -> image UV, with an object-fit: cover mapping.
         "vec2 get_img_uv() {",
@@ -194,6 +197,10 @@
         "    scale.x = containerAspect / imageAspect;",
         "  }",
         "  uv *= scale;",
+        // >1 samples a wider region than cover needs: zooms out, showing more
+        // of the frame. Past 1.0 this necessarily reaches beyond the image,
+        // which u_img_fade then resolves.
+        "  uv *= u_img_zoom;",
         "  return uv + 0.5;",
         "}",
 
@@ -240,6 +247,12 @@
         "  vec2 frame_uv = get_frame_uv() - push;",
         "  vec3 img = sample_image_smooth(img_uv);",
         "  float opacity = get_img_frame_alpha(frame_uv, .002);",
+        // Zoomed out, the sample runs past the image edge. Fade to transparent
+        // there rather than smearing the border pixel: the element behind is
+        // the page background, so the frame dissolves into it.
+        "  if (u_img_fade > 0.0) {",
+        "    opacity *= get_img_frame_alpha(img_uv, u_img_fade);",
+        "  }",
         "  gl_FragColor = vec4(img * opacity, opacity);",
         "}",
     ].join("\n")
@@ -263,6 +276,21 @@
         var cursorSizeInput = readNumber(container, "data-cursor-size", 0.5)
         var cursorPowerInput = readNumber(container, "data-cursor-power", 0.5)
         var distortionPower = readNumber(container, "data-distortion", 0.4)
+
+        // A 2.26:1 photograph inside a ~0.46:1 phone viewport means `cover`
+        // already uses 100% of the image height, so there is no headroom to
+        // zoom out without reaching past the edge. On narrow screens we accept
+        // that: sample wider, and fade the overshoot into the page background.
+        var zoomNarrow = readNumber(container, "data-zoom-narrow", 1)
+        var zoomBreakpoint = readNumber(container, "data-zoom-breakpoint", 900)
+        var narrowMQ = window.matchMedia("(max-width: " + zoomBreakpoint + "px)")
+        var imageZoom = 1
+        var syncZoom = function () {
+            imageZoom = narrowMQ.matches ? zoomNarrow : 1
+        }
+        syncZoom()
+        if (narrowMQ.addEventListener) narrowMQ.addEventListener("change", syncZoom)
+        else if (narrowMQ.addListener) narrowMQ.addListener(syncZoom)
 
         var canvas = document.createElement("canvas")
         canvas.className = "liquid-hover-canvas"
@@ -777,6 +805,13 @@
             gl.uniform1i(displayProgram.uniforms.u_output_texture, ink.read().attach(1))
             gl.uniform1f(displayProgram.uniforms.u_canvas_scale, 1)
             gl.uniform1f(displayProgram.uniforms.u_inner_scale, INNER_SCALE)
+            gl.uniform1f(displayProgram.uniforms.u_img_zoom, imageZoom)
+            // Only fade the image border when we are actually overshooting it,
+            // or every viewport would pick up an unwanted vignette.
+            gl.uniform1f(
+                displayProgram.uniforms.u_img_fade,
+                imageZoom > 1.001 ? IMG_EDGE_FADE : 0
+            )
             if (imageTexture) {
                 gl.activeTexture(gl.TEXTURE0)
                 gl.bindTexture(gl.TEXTURE_2D, imageTexture)
