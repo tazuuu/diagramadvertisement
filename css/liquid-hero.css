@@ -139,24 +139,20 @@
 }
 
 @media (max-width: 900px) {
-  /* Lighter than it used to be. The old values were tuned when `cover` showed
-     only a narrow slice of the frame and the scrim had to carry the whole
-     composition; now that the canvas zooms out on narrow screens there is a
-     real picture here, and burying it defeats the point. Still heavy enough on
-     the left and the floor to hold the headline and CTAs. */
+  /* Portrait viewports crop the image hard, so lean on the scrim more. */
   .hero-scrim {
     background:
       linear-gradient(
         90deg,
-        rgba(10, 10, 10, .78) 0%,
-        rgba(10, 10, 10, .5) 55%,
-        rgba(10, 10, 10, .34) 100%
+        rgba(10, 10, 10, .9) 0%,
+        rgba(10, 10, 10, .62) 55%,
+        rgba(10, 10, 10, .45) 100%
       ),
       linear-gradient(
         to top,
-        rgba(10, 10, 10, .88) 0%,
-        rgba(10, 10, 10, .2) 52%,
-        rgba(10, 10, 10, 0) 82%
+        rgba(10, 10, 10, .95) 0%,
+        rgba(10, 10, 10, .35) 48%,
+        rgba(10, 10, 10, .1) 80%
       );
   }
 
