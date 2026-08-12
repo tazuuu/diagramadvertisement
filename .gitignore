@@ -1,0 +1,7 @@
+node_modules
+.DS_Store
+
+# Local secrets for `vercel dev` — ADMIN_PASSWORD and GITHUB_TOKEN live here.
+.env
+.env.local
+.vercel

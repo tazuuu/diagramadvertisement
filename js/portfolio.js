@@ -59,14 +59,25 @@
     });
   }
 
-  // Alternate wide/narrow cards for a varied grid rhythm.
-  items.forEach(function (w, i) {
-    var wide = i % 4 === 0 || i % 4 === 3;
-    w.span = wide ? 7 : 5;
-    w.ratio = wide ? '16/10' : '16/12';
-  });
+  // Alternate wide/narrow cards for a varied grid rhythm. Re-run after works
+  // uploaded through /admin are merged in, so the pattern stays unbroken.
+  function assignRhythm() {
+    items.forEach(function (w, i) {
+      var wide = i % 4 === 0 || i % 4 === 3;
+      w.span = wide ? 7 : 5;
+      w.ratio = wide ? '16/10' : '16/12';
+    });
+  }
 
   var active = 'All';
+
+  // Cards are built with innerHTML, and titles now arrive from /admin rather
+  // than only from this file, so every interpolated value has to be escaped.
+  function esc(text) {
+    return String(text == null ? '' : text)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
 
   function renderFilters() {
     filtersEl.innerHTML = '';
@@ -100,10 +111,10 @@
       b.style.gridColumn = 'span ' + w.span;
       b.innerHTML =
         '<div class="thumb" style="aspect-ratio:' + w.ratio + ';">' +
-          '<img src="' + w.img + '" alt="' + w.title + '" loading="lazy">' +
+          '<img src="' + esc(w.img) + '" alt="' + esc(w.title) + '" loading="lazy">' +
           '<div class="thumb-shade" aria-hidden="true"></div>' +
-          '<div class="cat">' + w.cat + '</div>' +
-          '<div class="info"><div class="t anton">' + w.title + '</div><div class="s">' + w.sub + '</div></div>' +
+          '<div class="cat">' + esc(w.cat) + '</div>' +
+          '<div class="info"><div class="t anton">' + esc(w.title) + '</div><div class="s">' + esc(w.sub) + '</div></div>' +
         '</div>';
       b.addEventListener('click', function () { openLightbox(i); });
       gridEl.appendChild(b);
@@ -179,6 +190,34 @@
     }
   }
 
-  renderFilters();
-  renderGrid();
+  // Works added through /admin live in data/works.json. Newest first, so they
+  // go in front of the hand-authored list. The fetch is awaited before the
+  // first render — the file is tiny and same-origin, and rendering twice would
+  // shift the grid under the reader on every visit.
+  var known = {};
+  services.forEach(function (s) { known[s.cat] = 1; });
+
+  function isUsable(w) {
+    return w && typeof w.img === 'string' &&
+      // Anything outside the upload folder means a tampered or hand-edited
+      // file; refuse it rather than letting an arbitrary URL into src.
+      w.img.indexOf('images/uploads/') === 0 &&
+      w.title && w.sub && known[w.cat] === 1;
+  }
+
+  function start() {
+    assignRhythm();
+    renderFilters();
+    renderGrid();
+  }
+
+  fetch('data/works.json', { cache: 'no-cache' })
+    .then(function (res) { return res.ok ? res.json() : []; })
+    .then(function (uploaded) {
+      if (Array.isArray(uploaded)) {
+        items.unshift.apply(items, uploaded.filter(isUsable));
+      }
+    })
+    .catch(function () { /* No uploads file yet, or offline — show the built-in works. */ })
+    .then(start);
 })();
