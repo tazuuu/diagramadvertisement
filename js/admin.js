@@ -1,25 +1,42 @@
-// Admin upload form: shrink the image in the browser, then POST it to
-// /api/upload, which does the committing.
+// Admin console: list, add, edit and delete portfolio works.
 //
-// The resize is not cosmetic. Vercel rejects request bodies over 4.5MB, and
-// base64 inflates a file by a third, so an unshrunk phone photo would fail —
-// and every uploaded byte lives in the git repo forever.
+// Every call goes to /api/works, which does the committing. The image is shrunk
+// here first — that is not cosmetic: Vercel rejects request bodies over 4.5MB,
+// base64 inflates a file by a third, and every uploaded byte lives in the git
+// repo forever.
 (function () {
-  var form = document.getElementById('uploadForm');
-  if (!form) return;
+  var unlockForm = document.getElementById('unlockForm');
+  if (!unlockForm) return;
 
+  var passInput = document.getElementById('f-pass');
+  var unlockError = document.getElementById('unlockError');
+  var unlockBtn = document.getElementById('unlockBtn');
+  var consoleEl = document.getElementById('console');
+
+  var workForm = document.getElementById('workForm');
+  var idInput = document.getElementById('f-id');
   var fileInput = document.getElementById('f-image');
+  var titleInput = document.getElementById('f-title');
+  var subInput = document.getElementById('f-sub');
+  var catInput = document.getElementById('f-cat');
   var preview = document.getElementById('preview');
   var previewImg = preview.querySelector('img');
   var note = document.getElementById('imageNote');
   var errorEl = document.getElementById('formError');
   var okEl = document.getElementById('formOk');
   var submitBtn = document.getElementById('submitBtn');
+  var cancelBtn = document.getElementById('cancelEdit');
+  var heading = document.getElementById('formHeading');
+  var listEl = document.getElementById('workList');
 
   var MAX_WIDTH = 1600;
   var JPEG_QUALITY = 0.82;
+  var DEFAULT_NOTE = 'JPEG, PNG or WebP. Large photos are fine — they get resized.';
+  var EDIT_NOTE = 'Optional — leave empty to keep the current image.';
 
-  var resized = null; // { base64, bytes }
+  // Held in memory only, for the life of the tab. Never written to storage.
+  var password = null;
+  var resized = null;
 
   function show(el, message) {
     el.textContent = message;
@@ -37,7 +54,23 @@
       : (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   }
 
-  // Draw the image into a canvas at a capped width and re-encode as JPEG.
+  function call(payload) {
+    return fetch('/api/works', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Object.assign({ password: password }, payload))
+    }).then(function (res) {
+      return res.json()
+        .catch(function () { return { error: 'Server returned an unreadable response.' }; })
+        .then(function (data) {
+          if (!res.ok) throw new Error(data.error || 'Request failed.');
+          return data;
+        });
+    });
+  }
+
+  // ---- Image resize ----
+
   function shrink(file) {
     return new Promise(function (resolve, reject) {
       var url = URL.createObjectURL(file);
@@ -73,7 +106,10 @@
     preview.classList.remove('is-ready');
 
     var file = fileInput.files && fileInput.files[0];
-    if (!file) return;
+    if (!file) {
+      note.textContent = idInput.value ? EDIT_NOTE : DEFAULT_NOTE;
+      return;
+    }
 
     note.textContent = 'Resizing…';
     shrink(file).then(function (result) {
@@ -82,56 +118,181 @@
       preview.classList.add('is-ready');
       note.textContent = readableSize(file.size) + ' → ' + readableSize(result.bytes) + ' after resizing.';
     }).catch(function (err) {
-      note.textContent = 'JPEG, PNG or WebP. Large photos are fine — they get resized.';
+      note.textContent = idInput.value ? EDIT_NOTE : DEFAULT_NOTE;
       show(errorEl, err.message);
     });
   });
 
-  form.addEventListener('submit', function (e) {
+  // ---- Form modes ----
+
+  function toCreateMode() {
+    idInput.value = '';
+    workForm.reset();
+    resized = null;
+    preview.classList.remove('is-ready');
+    note.textContent = DEFAULT_NOTE;
+    heading.textContent = 'Add a work';
+    submitBtn.textContent = 'Publish work →';
+    cancelBtn.hidden = true;
+  }
+
+  function toEditMode(work) {
+    idInput.value = work.id;
+    titleInput.value = work.title;
+    subInput.value = work.sub;
+    catInput.value = work.cat;
+    fileInput.value = '';
+    resized = null;
+    previewImg.src = work.img;
+    preview.classList.add('is-ready');
+    note.textContent = EDIT_NOTE;
+    heading.textContent = 'Edit work';
+    submitBtn.textContent = 'Save changes →';
+    cancelBtn.hidden = false;
+    clearMessages();
+    heading.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  cancelBtn.addEventListener('click', function () {
+    clearMessages();
+    toCreateMode();
+  });
+
+  // ---- Work list ----
+
+  function renderList(works) {
+    listEl.textContent = '';
+
+    if (!works.length) {
+      var empty = document.createElement('div');
+      empty.className = 'work-empty';
+      empty.textContent = 'No uploaded works yet. The eight built-in ones live in js/portfolio.js.';
+      listEl.appendChild(empty);
+      return;
+    }
+
+    works.forEach(function (work) {
+      var row = document.createElement('div');
+      row.className = 'work-row';
+
+      // Built with DOM calls rather than innerHTML, so a title can never be
+      // markup here either.
+      var thumb = document.createElement('img');
+      thumb.src = work.img;
+      thumb.alt = '';
+      thumb.loading = 'lazy';
+
+      var meta = document.createElement('div');
+      meta.className = 'meta';
+      [['t', work.title], ['s', work.sub], ['c', work.cat]].forEach(function (pair) {
+        var line = document.createElement('div');
+        line.className = pair[0];
+        line.textContent = pair[1];
+        meta.appendChild(line);
+      });
+
+      var edit = document.createElement('button');
+      edit.type = 'button';
+      edit.textContent = 'Edit';
+      edit.addEventListener('click', function () { toEditMode(work); });
+
+      var remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'danger';
+      remove.textContent = 'Delete';
+      remove.addEventListener('click', function () { deleteWork(work, remove); });
+
+      row.appendChild(thumb);
+      row.appendChild(meta);
+      row.appendChild(edit);
+      row.appendChild(remove);
+      listEl.appendChild(row);
+    });
+  }
+
+  function deleteWork(work, button) {
+    if (!window.confirm('Delete “' + work.title + '”? This also removes its image from the repo.')) return;
+
+    clearMessages();
+    button.disabled = true;
+    button.textContent = 'Deleting…';
+
+    call({ action: 'delete', id: work.id }).then(function (data) {
+      renderList(data.works);
+      show(okEl, 'Deleted. The site is rebuilding — it will be gone from the portfolio in about a minute.');
+      if (idInput.value === work.id) toCreateMode();
+    }).catch(function (err) {
+      show(errorEl, err.message);
+      button.disabled = false;
+      button.textContent = 'Delete';
+    });
+  }
+
+  // ---- Unlock ----
+
+  unlockForm.addEventListener('submit', function (e) {
+    e.preventDefault();
+    unlockError.hidden = true;
+    unlockBtn.disabled = true;
+    unlockBtn.textContent = 'Checking…';
+
+    password = passInput.value;
+
+    call({ action: 'list' }).then(function (data) {
+      unlockForm.hidden = true;
+      consoleEl.hidden = false;
+      renderList(data.works);
+    }).catch(function (err) {
+      password = null;
+      show(unlockError, err.message);
+    }).finally(function () {
+      unlockBtn.disabled = false;
+      unlockBtn.textContent = 'Unlock';
+    });
+  });
+
+  // ---- Create / update ----
+
+  workForm.addEventListener('submit', function (e) {
     e.preventDefault();
     clearMessages();
 
-    if (!resized) {
+    var editing = !!idInput.value;
+    if (!editing && !resized) {
       show(errorEl, 'Choose an image first.');
       return;
     }
 
-    var payload = {
-      password: document.getElementById('f-pass').value,
-      title: document.getElementById('f-title').value.trim(),
-      sub: document.getElementById('f-sub').value.trim(),
-      cat: document.getElementById('f-cat').value,
-      image: resized.base64
-    };
-
-    if (!payload.title || !payload.sub) {
+    var title = titleInput.value.trim();
+    var sub = subInput.value.trim();
+    if (!title || !sub) {
       show(errorEl, 'Title and description are both required.');
       return;
     }
 
+    var payload = {
+      action: editing ? 'update' : 'create',
+      id: idInput.value,
+      title: title,
+      sub: sub,
+      cat: catInput.value
+    };
+    if (resized) payload.image = resized.base64;
+
     submitBtn.disabled = true;
-    submitBtn.textContent = 'Publishing…';
+    submitBtn.textContent = editing ? 'Saving…' : 'Publishing…';
 
-    fetch('/api/upload', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    }).then(function (res) {
-      return res.json().catch(function () { return { error: 'Server returned an unreadable response.' }; })
-        .then(function (data) { return { ok: res.ok, data: data }; });
-    }).then(function (result) {
-      if (!result.ok) throw new Error(result.data.error || 'Upload failed.');
-
-      show(okEl, 'Published. The site is rebuilding — it should be live on the portfolio page in about a minute.');
-      form.reset();
-      resized = null;
-      preview.classList.remove('is-ready');
-      note.textContent = 'JPEG, PNG or WebP. Large photos are fine — they get resized.';
+    call(payload).then(function (data) {
+      renderList(data.works);
+      toCreateMode();
+      show(okEl, editing
+        ? 'Saved. The site is rebuilding — the change goes live in about a minute.'
+        : 'Published. The site is rebuilding — it should be live on the portfolio page in about a minute.');
     }).catch(function (err) {
       show(errorEl, err.message);
     }).finally(function () {
       submitBtn.disabled = false;
-      submitBtn.textContent = 'Publish work →';
+      submitBtn.textContent = idInput.value ? 'Save changes →' : 'Publish work →';
     });
   });
 })();

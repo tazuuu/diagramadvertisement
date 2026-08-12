@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Add Work &mdash; Diagram Advertisement</title>
+<title>Manage Work &mdash; Diagram Advertisement</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <link rel="icon" href="assets/logo-mark.png">
@@ -12,15 +12,29 @@
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
 <style>
-  .admin-wrap { max-width: 720px; margin: 0 auto; padding: 64px 24px 96px; }
+  .admin-wrap { max-width: 760px; margin: 0 auto; padding: 64px 24px 96px; }
   .admin-head { margin-bottom: 32px; }
   .admin-head h1 { margin: 8px 0 12px; }
-  .admin-head p { color: #8a8a8a; max-width: 52ch; }
+  .admin-head p { color: #8a8a8a; max-width: 56ch; }
+  .admin-section { margin-top: 48px; }
+  .admin-section > h2 { margin-bottom: 16px; }
+
   .admin-preview { margin-top: 12px; border-radius: 8px; overflow: hidden; background: #141414; display: none; }
   .admin-preview img { display: block; width: 100%; height: auto; }
   .admin-preview.is-ready { display: block; }
   .admin-note { color: #8a8a8a; font-size: 13px; margin-top: 8px; }
   .form-ok { color: #4ade80; margin: 12px 0; }
+  .admin-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+
+  .work-row { display: flex; gap: 16px; align-items: center; padding: 12px 0; border-bottom: 1px solid #242424; }
+  .work-row img { width: 84px; height: 60px; object-fit: cover; border-radius: 6px; background: #141414; flex: none; }
+  .work-row .meta { flex: 1; min-width: 0; }
+  .work-row .meta .t { font-weight: 700; }
+  .work-row .meta .s,
+  .work-row .meta .c { color: #8a8a8a; font-size: 13px; }
+  .work-row button { padding: 8px 14px; font-size: 13px; width: auto; }
+  .work-row .danger { background: none; border: 1px solid #7a2530; color: #e2707c; }
+  .work-empty { color: #8a8a8a; padding: 16px 0; }
 </style>
 </head>
 <body>
@@ -28,56 +42,78 @@
 <main id="main" class="admin-wrap">
   <div class="admin-head">
     <div class="label">INTERNAL</div>
-    <h1 class="anton">Add a work</h1>
+    <h1 class="anton">Manage work</h1>
     <p>
-      This publishes straight to the live portfolio. The image is shrunk in your
-      browser before it uploads, then the site rebuilds &mdash; give it about a
-      minute to appear on <a href="/portfolio">the portfolio page</a>.
+      Changes here publish straight to the live portfolio. The site rebuilds
+      after each one, so give it about a minute to show up on
+      <a href="/portfolio">the portfolio page</a>.
     </p>
   </div>
 
-  <form id="uploadForm" class="contact-form" novalidate>
+  <!-- Unlock -->
+  <form id="unlockForm" class="contact-form">
     <div class="field">
       <label for="f-pass">Password</label>
       <input id="f-pass" name="password" type="password" required autocomplete="current-password">
     </div>
-
-    <div class="field">
-      <label for="f-image">Image</label>
-      <input id="f-image" name="image" type="file" accept="image/jpeg,image/png,image/webp" required>
-      <div class="admin-note" id="imageNote">JPEG, PNG or WebP. Large photos are fine &mdash; they get resized.</div>
-      <div class="admin-preview" id="preview"><img alt="Preview of the selected image"></div>
-    </div>
-
-    <div class="field">
-      <label for="f-title">Title</label>
-      <input id="f-title" name="title" required maxlength="80" placeholder="Nice Times Cafeteria">
-    </div>
-
-    <div class="field">
-      <label for="f-sub">Description</label>
-      <input id="f-sub" name="sub" required maxlength="120" placeholder="Facade signage &amp; lighting">
-    </div>
-
-    <div class="field">
-      <label for="f-cat">Category</label>
-      <select id="f-cat" name="cat" required>
-        <option value="3D Signage">3D Signage</option>
-        <option value="LED Wall">LED Wall</option>
-        <option value="Vehicle Graphics">Vehicle Graphics</option>
-        <option value="Vinyl Sticker">Vinyl Sticker</option>
-        <option value="UV Printing">UV Printing</option>
-        <option value="Engraving">Engraving</option>
-        <option value="ID &amp; Loyalty Cards">ID &amp; Loyalty Cards</option>
-        <option value="Event Management">Event Management</option>
-        <option value="Event Promotion">Event Promotion</option>
-      </select>
-    </div>
-
-    <div id="formError" class="form-error" role="alert" hidden></div>
-    <div id="formOk" class="form-ok" role="status" hidden></div>
-    <button type="submit" id="submitBtn">Publish work &#8594;</button>
+    <div id="unlockError" class="form-error" role="alert" hidden></div>
+    <button type="submit" id="unlockBtn">Unlock</button>
   </form>
+
+  <!-- Everything below appears only after unlocking -->
+  <div id="console" hidden>
+    <section class="admin-section">
+      <h2 class="anton" id="formHeading">Add a work</h2>
+      <form id="workForm" class="contact-form" novalidate>
+        <input type="hidden" id="f-id">
+
+        <div class="field">
+          <label for="f-image">Image</label>
+          <input id="f-image" name="image" type="file" accept="image/jpeg,image/png,image/webp">
+          <div class="admin-note" id="imageNote">JPEG, PNG or WebP. Large photos are fine &mdash; they get resized.</div>
+          <div class="admin-preview" id="preview"><img alt="Preview of the selected image"></div>
+        </div>
+
+        <div class="field">
+          <label for="f-title">Title</label>
+          <input id="f-title" name="title" required maxlength="80" placeholder="Nice Times Cafeteria">
+        </div>
+
+        <div class="field">
+          <label for="f-sub">Description</label>
+          <input id="f-sub" name="sub" required maxlength="120" placeholder="Facade signage &amp; lighting">
+        </div>
+
+        <div class="field">
+          <label for="f-cat">Category</label>
+          <select id="f-cat" name="cat" required>
+            <option value="3D Signage">3D Signage</option>
+            <option value="LED Wall">LED Wall</option>
+            <option value="Vehicle Graphics">Vehicle Graphics</option>
+            <option value="Vinyl Sticker">Vinyl Sticker</option>
+            <option value="UV Printing">UV Printing</option>
+            <option value="Engraving">Engraving</option>
+            <option value="ID &amp; Loyalty Cards">ID &amp; Loyalty Cards</option>
+            <option value="Event Management">Event Management</option>
+            <option value="Event Promotion">Event Promotion</option>
+          </select>
+        </div>
+
+        <div id="formError" class="form-error" role="alert" hidden></div>
+        <div id="formOk" class="form-ok" role="status" hidden></div>
+
+        <div class="admin-actions">
+          <button type="submit" id="submitBtn">Publish work &#8594;</button>
+          <button type="button" id="cancelEdit" hidden>Cancel edit</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="admin-section">
+      <h2 class="anton">Published works</h2>
+      <div id="workList"><div class="work-empty">Loading…</div></div>
+    </section>
+  </div>
 </main>
 
 <script src="js/admin.js"></script>
