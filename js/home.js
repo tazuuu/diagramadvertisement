@@ -48,6 +48,22 @@
   }
 })();
 
+// Clients marquee: duplicate the logo row so the scroll loops seamlessly.
+// Done in JS rather than the markup so index.html keeps one authoritative copy
+// of the client list — a hand-duplicated set drifts the moment a client is
+// added. The clone is aria-hidden and inert, so assistive tech and keyboard
+// users meet each client exactly once.
+(function () {
+  var group = document.getElementById('clientsGroup');
+  if (!group) return;
+
+  var clone = group.cloneNode(true);
+  clone.removeAttribute('id');
+  clone.setAttribute('aria-hidden', 'true');
+  clone.querySelectorAll('img').forEach(function (img) { img.alt = ''; });
+  group.parentNode.appendChild(clone);
+})();
+
 // Auto-rotate filmstrip card images, staggered per card, paused on hover.
 (function () {
   var sets = window.SERVICE_IMAGES;
