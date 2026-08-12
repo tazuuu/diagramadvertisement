@@ -1,8 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!-- URLs are extensionless to match vercel.json's cleanUrls and the canonical
+     tag on each page. Listing the .html form here would point crawlers at a
+     redirect that the page itself then disowns. -->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://diagramadvertismentllc.ae/</loc><priority>1.0</priority></url>
-  <url><loc>https://diagramadvertismentllc.ae/services.html</loc><priority>0.9</priority></url>
-  <url><loc>https://diagramadvertismentllc.ae/portfolio.html</loc><priority>0.9</priority></url>
-  <url><loc>https://diagramadvertismentllc.ae/about.html</loc><priority>0.7</priority></url>
-  <url><loc>https://diagramadvertismentllc.ae/contact.html</loc><priority>0.8</priority></url>
+  <url><loc>https://diagramadvertisement.com/</loc><priority>1.0</priority></url>
+  <url><loc>https://diagramadvertisement.com/services</loc><priority>0.9</priority></url>
+  <url><loc>https://diagramadvertisement.com/portfolio</loc><priority>0.9</priority></url>
+  <url><loc>https://diagramadvertisement.com/about</loc><priority>0.7</priority></url>
+  <url><loc>https://diagramadvertisement.com/contact</loc><priority>0.8</priority></url>
 </urlset>
