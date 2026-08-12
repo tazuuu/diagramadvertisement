@@ -23,10 +23,27 @@ loads but answers *"Server is not configured"*.
 <https://github.com/settings/personal-access-tokens/new> — a **fine-grained**
 token, not a classic one:
 
+- **Expiration** → **No expiration**
 - **Repository access** → Only select repositories → `tazuuu/website`
 - **Permissions** → Repository permissions → **Contents: Read and write**
 - Nothing else. No other repo, no other permission.
-- Set an expiry you will actually remember; uploads stop working the day it lapses.
+
+The expiration setting is the important one. A dated token stops working the day
+it lapses, with no warning — uploads simply start failing. "No expiration" avoids
+that, at the cost of a credential that lives until you revoke it. Paste it into
+the Vercel environment variable and nowhere else: not into a file in this repo,
+not into a chat message, not into a note.
+
+### If the token is ever exposed
+
+Revoke first, ask questions later — it takes under a minute:
+
+1. <https://github.com/settings/personal-access-tokens> → the token → **Revoke**
+2. Create a replacement with the same two settings above
+3. Update `GITHUB_TOKEN` in Vercel and redeploy
+
+The old token is dead the moment you revoke it. The worst it could have done in
+the meantime is write to this one repository, which is why it is scoped that way.
 
 ### 2. Put both secrets in Vercel
 
@@ -95,7 +112,7 @@ node test-works.js
 | *ADMIN_PASSWORD must be at least 12 characters* | Exactly that. Lengthen it in Vercel and redeploy. |
 | *Wrong password* | It doesn't match `ADMIN_PASSWORD`. |
 | *Too many wrong passwords* | Five failures from your address. Wait 15 minutes. |
-| *GitHub rejected the image* | Token expired, or it lacks Contents: write on this repo. |
+| *GitHub rejected the image* | Token revoked, or it lacks Contents: write on this repo. |
 | *That work no longer exists* | The list on screen is stale — reload the page and unlock again. |
 | *Could not update the works list* | Two changes collided, or the token lost write access mid-way. Try again. |
 
