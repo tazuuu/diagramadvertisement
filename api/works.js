@@ -17,7 +17,15 @@
 
 const crypto = require('node:crypto');
 
-const DEFAULT_REPO = 'tazuuu/website';
+// Vercel injects the repo it deployed from, so renaming the repo on GitHub
+// fixes itself on the next deploy. Without this, a rename would be silent
+// rather than loud: GitHub 301-redirects the renamed path, and fetch downgrades
+// a redirected PUT or DELETE to a GET — the commit never happens, but the
+// response still looks like success. The literal is the fallback for `vercel dev`.
+const DEFAULT_REPO =
+  process.env.VERCEL_GIT_REPO_OWNER && process.env.VERCEL_GIT_REPO_SLUG
+    ? process.env.VERCEL_GIT_REPO_OWNER + '/' + process.env.VERCEL_GIT_REPO_SLUG
+    : 'tazuuu/website';
 const DEFAULT_BRANCH = 'main';
 const WORKS_PATH = 'data/works.json';
 const UPLOAD_DIR = 'images/uploads';
@@ -102,6 +110,10 @@ function isOwnedImage(path) {
 function githubRequest(repo, token, path, options) {
   return fetch('https://api.github.com/repos/' + repo + '/contents/' + path, {
     ...options,
+    // A stale repo name 301s here. Following that would turn a PUT or DELETE
+    // into a GET and report success for a commit that never happened, so fail
+    // loudly instead — the operator sees an error rather than a phantom upload.
+    redirect: 'error',
     headers: {
       Authorization: 'Bearer ' + token,
       Accept: 'application/vnd.github+json',

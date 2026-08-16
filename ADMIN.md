@@ -24,7 +24,8 @@ loads but answers *"Server is not configured"*.
 token, not a classic one:
 
 - **Expiration** → **No expiration**
-- **Repository access** → Only select repositories → `tazuuu/website`
+- **Repository access** → Only select repositories → the repo this site deploys
+  from (`tazuuu/website` unless it has been renamed)
 - **Permissions** → Repository permissions → **Contents: Read and write**
 - Nothing else. No other repo, no other permission.
 
@@ -54,9 +55,14 @@ Vercel project → Settings → Environment Variables:
 | `ADMIN_PASSWORD` | Your choice, **minimum 12 characters** — the server refuses to run below that. |
 | `GITHUB_TOKEN` | The token from step 1. |
 
-Optional, only if the repo or branch ever changes: `GITHUB_REPO`
-(`owner/name`, defaults to `tazuuu/website`) and `GITHUB_BRANCH` (defaults to
-`main`).
+Optional: `GITHUB_BRANCH` (defaults to `main`), and `GITHUB_REPO` (`owner/name`)
+to commit somewhere other than the repo Vercel deployed from.
+
+**Renaming the repo on GitHub is safe.** The endpoint reads the repo name from
+Vercel's own deployment info, so it corrects itself on the next deploy, and the
+token follows the rename because fine-grained tokens are bound to the repo's ID
+rather than its name. Only set `GITHUB_REPO` if you want to override that — and
+if you do, remember to update it after a rename, or uploads will fail.
 
 Redeploy once after adding them — environment variables are read at deploy time.
 
