@@ -25,7 +25,7 @@ token, not a classic one:
 
 - **Expiration** → **No expiration**
 - **Repository access** → Only select repositories → the repo this site deploys
-  from (`tazuuu/website` unless it has been renamed)
+  from (`tazuuu/diagramadvertisement`)
 - **Permissions** → Repository permissions → **Contents: Read and write**
 - Nothing else. No other repo, no other permission.
 

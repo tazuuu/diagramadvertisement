@@ -25,7 +25,7 @@ const crypto = require('node:crypto');
 const DEFAULT_REPO =
   process.env.VERCEL_GIT_REPO_OWNER && process.env.VERCEL_GIT_REPO_SLUG
     ? process.env.VERCEL_GIT_REPO_OWNER + '/' + process.env.VERCEL_GIT_REPO_SLUG
-    : 'tazuuu/website';
+    : 'tazuuu/diagramadvertisement';
 const DEFAULT_BRANCH = 'main';
 const WORKS_PATH = 'data/works.json';
 const UPLOAD_DIR = 'images/uploads';
