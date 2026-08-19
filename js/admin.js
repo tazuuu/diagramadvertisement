@@ -4,6 +4,10 @@
 // here first — that is not cosmetic: Vercel rejects request bodies over 4.5MB,
 // base64 inflates a file by a third, and every uploaded byte lives in the git
 // repo forever.
+//
+// Videos take the opposite route. They are far too big for either limit, so the
+// server hands back a presigned URL and the file goes browser-to-Cloudflare
+// without touching Vercel. Only the resulting URL is committed.
 (function () {
   var unlockForm = document.getElementById('unlockForm');
   if (!unlockForm) return;
@@ -28,15 +32,26 @@
   var cancelBtn = document.getElementById('cancelEdit');
   var heading = document.getElementById('formHeading');
   var listEl = document.getElementById('workList');
+  var videoField = document.getElementById('videoField');
+  var videoInput = document.getElementById('f-video');
+  var videoNote = document.getElementById('videoNote');
+  var videoProgress = document.getElementById('videoProgress');
+  var videoBar = videoProgress.querySelector('span');
+  var videoCurrent = document.getElementById('videoCurrent');
+  var removeVideoBtn = document.getElementById('removeVideo');
 
   var MAX_WIDTH = 1600;
   var JPEG_QUALITY = 0.82;
   var DEFAULT_NOTE = 'JPEG, PNG or WebP. Large photos are fine — they get resized.';
   var EDIT_NOTE = 'Optional — leave empty to keep the current image.';
+  var VIDEO_NOTE = 'MP4 or WebM, up to 200MB. The image above stays the card thumbnail.';
+  var MAX_VIDEO_BYTES = 200 * 1024 * 1024;
 
   // Held in memory only, for the life of the tab. Never written to storage.
   var password = null;
   var resized = null;
+  var videoEnabled = false;
+  var clearVideo = false;   // Set when editing and the operator drops the video.
 
   function show(el, message) {
     el.textContent = message;
@@ -68,6 +83,72 @@
         });
     });
   }
+
+  // ---- Video upload ----
+
+  // XHR rather than fetch purely for the progress events. A 150MB upload over a
+  // phone connection is minutes long, and a silent button invites a second
+  // click that would upload the whole thing again.
+  function putToR2(url, file) {
+    return new Promise(function (resolve, reject) {
+      var xhr = new XMLHttpRequest();
+      xhr.open('PUT', url, true);
+      xhr.setRequestHeader('Content-Type', file.type);
+
+      xhr.upload.onprogress = function (e) {
+        if (!e.lengthComputable) return;
+        videoBar.style.width = Math.round((e.loaded / e.total) * 100) + '%';
+      };
+      xhr.onload = function () {
+        if (xhr.status >= 200 && xhr.status < 300) resolve();
+        else reject(new Error('The video upload was rejected (' + xhr.status + ').'));
+      };
+      xhr.onerror = function () {
+        // A browser cannot see why a cross-origin request failed, and the
+        // overwhelmingly likely reason is a bucket without a CORS rule.
+        reject(new Error('Could not reach the video host. Check the bucket CORS rule in Cloudflare.'));
+      };
+      xhr.send(file);
+    });
+  }
+
+  // Resolves to the public URL of the uploaded video.
+  function uploadVideo(file, title) {
+    videoProgress.classList.add('is-active');
+    videoBar.style.width = '0%';
+    videoNote.textContent = 'Uploading video…';
+
+    return call({ action: 'sign-video', contentType: file.type, title: title })
+      .then(function (data) {
+        return putToR2(data.upload.url, file).then(function () { return data.upload.publicUrl; });
+      })
+      .finally(function () {
+        videoProgress.classList.remove('is-active');
+        videoNote.textContent = VIDEO_NOTE;
+      });
+  }
+
+  videoInput.addEventListener('change', function () {
+    clearMessages();
+    var file = videoInput.files && videoInput.files[0];
+    if (!file) { videoNote.textContent = VIDEO_NOTE; return; }
+
+    if (file.size > MAX_VIDEO_BYTES) {
+      videoInput.value = '';
+      videoNote.textContent = VIDEO_NOTE;
+      show(errorEl, 'That video is ' + readableSize(file.size) + '. The limit is 200MB — compress it first.');
+      return;
+    }
+    clearVideo = false;
+    videoNote.textContent = readableSize(file.size) + ' — uploads when you publish.';
+  });
+
+  removeVideoBtn.addEventListener('click', function () {
+    clearVideo = true;
+    videoInput.value = '';
+    videoCurrent.hidden = true;
+    videoNote.textContent = 'Video will be removed when you save.';
+  });
 
   // ---- Image resize ----
 
@@ -131,6 +212,10 @@
     resized = null;
     preview.classList.remove('is-ready');
     note.textContent = DEFAULT_NOTE;
+    videoInput.value = '';
+    videoNote.textContent = VIDEO_NOTE;
+    videoCurrent.hidden = true;
+    clearVideo = false;
     heading.textContent = 'Add a work';
     submitBtn.textContent = 'Publish work →';
     cancelBtn.hidden = true;
@@ -146,6 +231,10 @@
     previewImg.src = work.img;
     preview.classList.add('is-ready');
     note.textContent = EDIT_NOTE;
+    videoInput.value = '';
+    videoNote.textContent = VIDEO_NOTE;
+    videoCurrent.hidden = !work.video;
+    clearVideo = false;
     heading.textContent = 'Edit work';
     submitBtn.textContent = 'Save changes →';
     cancelBtn.hidden = false;
@@ -190,6 +279,13 @@
         line.textContent = pair[1];
         meta.appendChild(line);
       });
+
+      if (work.video) {
+        var badge = document.createElement('span');
+        badge.className = 'badge';
+        badge.textContent = 'VIDEO';
+        meta.querySelector('.t').appendChild(badge);
+      }
 
       var edit = document.createElement('button');
       edit.type = 'button';
@@ -241,6 +337,10 @@
     call({ action: 'list' }).then(function (data) {
       unlockForm.hidden = true;
       consoleEl.hidden = false;
+      // Hidden rather than broken when R2 is not configured, so the console
+      // stays usable for image-only works.
+      videoEnabled = !!data.video;
+      videoField.hidden = !videoEnabled;
       renderList(data.works);
     }).catch(function (err) {
       password = null;
@@ -279,10 +379,23 @@
     };
     if (resized) payload.image = resized.base64;
 
-    submitBtn.disabled = true;
-    submitBtn.textContent = editing ? 'Saving…' : 'Publishing…';
+    var videoFile = videoEnabled && videoInput.files && videoInput.files[0];
+    if (editing && clearVideo && !videoFile) payload.video = 'remove';
 
-    call(payload).then(function (data) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = videoFile ? 'Uploading…' : (editing ? 'Saving…' : 'Publishing…');
+
+    // The video goes up first. If it fails the work is never created, which is
+    // the right way round — the alternative is a published card pointing at a
+    // video that is not there.
+    var ready = videoFile
+      ? uploadVideo(videoFile, title).then(function (url) { payload.video = url; })
+      : Promise.resolve();
+
+    ready.then(function () {
+      submitBtn.textContent = editing ? 'Saving…' : 'Publishing…';
+      return call(payload);
+    }).then(function (data) {
       renderList(data.works);
       toCreateMode();
       show(okEl, editing

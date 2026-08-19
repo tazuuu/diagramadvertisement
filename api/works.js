@@ -14,8 +14,14 @@
 //   GITHUB_TOKEN    fine-grained PAT, contents:write on GITHUB_REPO alone
 //   GITHUB_REPO     "owner/name"      (optional, defaults below)
 //   GITHUB_BRANCH   branch to commit  (optional, defaults below)
+//
+// Videos are the exception to all of the above: they are far too big for both
+// this endpoint's request limit and a git repo, so they live in Cloudflare R2
+// and only their URL is committed. See api/_r2.js for the R2 variables. Leave
+// those unset and the console simply works without video.
 
 const crypto = require('node:crypto');
+const r2 = require('./_r2.js');
 
 // Vercel injects the repo it deployed from, so renaming the repo on GitHub
 // fixes itself on the next deploy. Without this, a rename would be silent
@@ -29,6 +35,9 @@ const DEFAULT_REPO =
 const DEFAULT_BRANCH = 'main';
 const WORKS_PATH = 'data/works.json';
 const UPLOAD_DIR = 'images/uploads';
+
+const VIDEO_DIR = 'videos';
+const VIDEO_TYPES = { 'video/mp4': 'mp4', 'video/webm': 'webm' };
 
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const MAX_TITLE = 80;
@@ -103,6 +112,31 @@ function isOwnedImage(path) {
     path.indexOf(UPLOAD_DIR + '/') === 0 &&
     path.indexOf('..') === -1 &&
     path.slice(UPLOAD_DIR.length + 1).indexOf('/') === -1;
+}
+
+// The stored URL is written straight into a <video src> on the portfolio page,
+// so it is a trust boundary even though only the operator can reach this
+// endpoint. Accept only what this server itself minted: our own R2 bucket, our
+// own prefix, our own naming scheme.
+function validateVideoUrl(url, cfg) {
+  if (url === undefined || url === null || url === '') return null;
+  if (typeof url !== 'string') return { error: 'Video URL is not usable.' };
+  if (!cfg) return { error: 'Video storage is not configured on this site.' };
+
+  const prefix = cfg.publicBase + '/' + VIDEO_DIR + '/';
+  if (url.indexOf(prefix) !== 0) return { error: 'That video is not on the media host for this site.' };
+
+  const name = url.slice(prefix.length);
+  if (!/^[a-z0-9-]+\.(mp4|webm)$/.test(name)) return { error: 'That video URL is not one this site issued.' };
+  return { url };
+}
+
+// Recovers the R2 object key from a stored URL, so a deleted work takes its
+// video with it. Null when the URL is not ours to delete.
+function videoKey(url, cfg) {
+  const checked = validateVideoUrl(url, cfg);
+  if (!checked || checked.error) return null;
+  return VIDEO_DIR + '/' + url.slice((cfg.publicBase + '/' + VIDEO_DIR + '/').length);
 }
 
 // ---- GitHub contents API ----
@@ -217,6 +251,31 @@ function validateImage(raw) {
 
 // ---- Actions ----
 
+// Hands the browser a short-lived URL that lets it PUT one file, under a name
+// this server chose, into one bucket. The R2 secret never leaves the function.
+function signVideo(ctx, body) {
+  if (!ctx.r2) {
+    return { status: 501, error: 'Video storage is not configured. Add the R2 variables in Vercel.' };
+  }
+
+  const ext = VIDEO_TYPES[String(body.contentType || '')];
+  if (!ext) return { status: 400, error: 'Videos must be MP4 or WebM.' };
+
+  // The client never names the object. A caller-supplied key is a path
+  // traversal waiting to happen, and it would also let one upload overwrite
+  // another.
+  const key = VIDEO_DIR + '/' + slugify(body.title) + '-' + Date.now() + '.' + ext;
+
+  return {
+    status: 200,
+    upload: {
+      url: r2.uploadUrl(ctx.r2, key),
+      publicUrl: r2.publicUrl(ctx.r2, key),
+      expiresIn: r2.UPLOAD_URL_TTL
+    }
+  };
+}
+
 async function createWork(ctx, body) {
   const fields = validateFields(body);
   if (fields.error) return { status: 400, error: fields.error };
@@ -224,6 +283,9 @@ async function createWork(ctx, body) {
   const image = validateImage(body.image);
   if (!image) return { status: 400, error: 'An image is required.' };
   if (image.error) return { status: 400, error: image.error };
+
+  const video = validateVideoUrl(body.video, ctx.r2);
+  if (video && video.error) return { status: 400, error: video.error };
 
   const imagePath = UPLOAD_DIR + '/' + slugify(fields.title) + '-' + Date.now() + '.' + image.ext;
   const res = await putFile(ctx, imagePath, image.buffer.toString('base64'), 'chore: upload image for ' + fields.title);
@@ -236,6 +298,9 @@ async function createWork(ctx, body) {
     sub: fields.sub,
     cat: fields.cat
   };
+  // Absent rather than empty when there is no video, so works.json keeps the
+  // shape it had before videos existed.
+  if (video) entry.video = video.url;
 
   const works = await updateWorks(ctx, function (items) {
     return [entry].concat(items);
@@ -255,6 +320,12 @@ async function updateWork(ctx, body) {
   const image = validateImage(body.image);
   if (image && image.error) return { status: 400, error: image.error };
 
+  // Three cases: a new video URL, the string 'remove' to drop the current one,
+  // and undefined to leave it alone.
+  const dropVideo = body.video === 'remove';
+  const video = dropVideo ? null : validateVideoUrl(body.video, ctx.r2);
+  if (video && video.error) return { status: 400, error: video.error };
+
   let imagePath = existing.img;
   if (image) {
     imagePath = UPLOAD_DIR + '/' + slugify(fields.title) + '-' + Date.now() + '.' + image.ext;
@@ -262,9 +333,14 @@ async function updateWork(ctx, body) {
     if (!res.ok) return { status: 502, error: 'GitHub rejected the new image (' + res.status + ').' };
   }
 
+  const nextVideo = dropVideo ? null : (video ? video.url : existing.video);
+
   const works = await updateWorks(ctx, function (items) {
     return items.map(function (w) {
-      return w.id === id ? { id: id, img: imagePath, title: fields.title, sub: fields.sub, cat: fields.cat } : w;
+      if (w.id !== id) return w;
+      const next = { id: id, img: imagePath, title: fields.title, sub: fields.sub, cat: fields.cat };
+      if (nextVideo) next.video = nextVideo;
+      return next;
     });
   }, 'feat: edit work — ' + fields.title);
 
@@ -272,6 +348,10 @@ async function updateWork(ctx, body) {
   // unreferenced file rather than a broken card.
   if (image && isOwnedImage(existing.img)) {
     await deleteFile(ctx, existing.img, 'chore: drop replaced image for ' + fields.title);
+  }
+  if (existing.video && existing.video !== nextVideo) {
+    const key = videoKey(existing.video, ctx.r2);
+    if (key) await r2.deleteObject(ctx.r2, key);
   }
 
   return { status: 200, works };
@@ -288,6 +368,10 @@ async function deleteWork(ctx, body) {
 
   if (isOwnedImage(existing.img)) {
     await deleteFile(ctx, existing.img, 'chore: drop image for ' + existing.title);
+  }
+  if (existing.video) {
+    const key = videoKey(existing.video, ctx.r2);
+    if (key) await r2.deleteObject(ctx.r2, key);
   }
 
   return { status: 200, works };
@@ -335,19 +419,26 @@ module.exports = async function handler(req, res) {
   const ctx = {
     repo: process.env.GITHUB_REPO || DEFAULT_REPO,
     branch: process.env.GITHUB_BRANCH || DEFAULT_BRANCH,
-    token: token
+    token: token,
+    r2: r2.r2Config()
   };
 
   try {
     let result;
-    if (body.action === 'list') result = { status: 200, works: (await readWorks(ctx)).items };
+    if (body.action === 'list') {
+      result = { status: 200, works: (await readWorks(ctx)).items, video: !!ctx.r2 };
+    } else if (body.action === 'sign-video') {
+      const signed = signVideo(ctx, body);
+      if (signed.error) return res.status(signed.status).json({ error: signed.error });
+      return res.status(200).json({ ok: true, upload: signed.upload });
+    }
     else if (body.action === 'create') result = await createWork(ctx, body);
     else if (body.action === 'update') result = await updateWork(ctx, body);
     else if (body.action === 'delete') result = await deleteWork(ctx, body);
     else return res.status(400).json({ error: 'Unknown action.' });
 
     if (result.error) return res.status(result.status).json({ error: result.error });
-    return res.status(result.status).json({ ok: true, works: result.works });
+    return res.status(result.status).json({ ok: true, works: result.works, video: result.video });
   } catch (err) {
     return res.status(502).json({ error: err.message });
   }
@@ -356,5 +447,6 @@ module.exports = async function handler(req, res) {
 // Exposed for test-works.js. Vercel ignores extra properties on the handler.
 module.exports.__test = {
   imageExtension, slugify, secretMatches, isOwnedImage, validateFields, validateImage,
-  throttleState, recordFailure, failures, CATEGORIES, MIN_PASSWORD
+  validateVideoUrl, videoKey, signVideo, throttleState, recordFailure, failures,
+  CATEGORIES, MIN_PASSWORD, VIDEO_TYPES
 };

@@ -37,6 +37,13 @@
   .work-row button { padding: 8px 14px; font-size: 13px; width: auto; }
   .work-row .danger { background: none; border: 1px solid #7a2530; color: #e2707c; }
   .work-empty { color: #8a8a8a; padding: 16px 0; }
+
+  .admin-optional { color: #8a8a8a; font-weight: 400; text-transform: none; letter-spacing: 0; }
+  .admin-progress { display: none; height: 4px; margin-top: 10px; border-radius: 2px; background: #242424; overflow: hidden; }
+  .admin-progress.is-active { display: block; }
+  .admin-progress span { display: block; height: 100%; width: 0; background: #ea1d2c; transition: width .2s linear; }
+  .admin-actions .danger { background: none; border: 1px solid #7a2530; color: #e2707c; padding: 6px 12px; font-size: 13px; width: auto; }
+  .work-row .badge { display: inline-block; margin-left: 8px; padding: 1px 6px; border-radius: 3px; background: #242424; color: #b9b9b9; font-size: 11px; letter-spacing: .06em; vertical-align: middle; }
 </style>
 </head>
 <body>
@@ -74,6 +81,17 @@
           <input id="f-image" name="image" type="file" accept="image/jpeg,image/png,image/webp">
           <div class="admin-note" id="imageNote">JPEG, PNG or WebP. Large photos are fine &mdash; they get resized.</div>
           <div class="admin-preview" id="preview"><img alt="Preview of the selected image"></div>
+        </div>
+
+        <div class="field" id="videoField" hidden>
+          <label for="f-video">Video <span class="admin-optional">optional</span></label>
+          <input id="f-video" name="video" type="file" accept="video/mp4,video/webm">
+          <div class="admin-note" id="videoNote">MP4 or WebM, up to 200MB. The image above stays the card thumbnail.</div>
+          <div class="admin-progress" id="videoProgress"><span></span></div>
+          <div class="admin-actions" id="videoCurrent" hidden>
+            <span class="admin-note" id="videoCurrentText">This work has a video.</span>
+            <button type="button" id="removeVideo" class="danger">Remove video</button>
+          </div>
         </div>
 
         <div class="field">

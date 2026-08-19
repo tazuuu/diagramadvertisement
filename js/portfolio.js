@@ -107,13 +107,14 @@
       b.type = 'button';
       b.className = 'portfolio-card';
       b.setAttribute('data-reveal', '');
-      b.setAttribute('aria-label', 'View ' + w.title + ' — ' + w.sub);
+      b.setAttribute('aria-label', (w.video ? 'Play ' : 'View ') + w.title + ' — ' + w.sub);
       b.style.gridColumn = 'span ' + w.span;
       b.innerHTML =
         '<div class="thumb" style="aspect-ratio:' + w.ratio + ';">' +
           '<img src="' + esc(w.img) + '" alt="' + esc(w.title) + '" loading="lazy">' +
           '<div class="thumb-shade" aria-hidden="true"></div>' +
           '<div class="cat">' + esc(w.cat) + '</div>' +
+          (w.video ? '<div class="thumb-play" aria-hidden="true"></div>' : '') +
           '<div class="info"><div class="t anton">' + esc(w.title) + '</div><div class="s">' + esc(w.sub) + '</div></div>' +
         '</div>';
       b.addEventListener('click', function () { openLightbox(i); });
@@ -131,18 +132,39 @@
     '<button type="button" class="lb-btn lb-prev" aria-label="Previous image">&#8592;</button>' +
     '<figure class="lb-figure">' +
       '<img class="lb-img" alt="">' +
+      '<video class="lb-video" controls playsinline preload="metadata" hidden></video>' +
       '<figcaption class="lb-caption"><span class="lb-cat"></span><span class="lb-title anton"></span><span class="lb-sub"></span></figcaption>' +
     '</figure>' +
     '<button type="button" class="lb-btn lb-next" aria-label="Next image">&#8594;</button>';
   document.body.appendChild(lb);
 
   var lbImg = lb.querySelector('.lb-img');
+  var lbVideo = lb.querySelector('.lb-video');
   var lbIdx = 0, lastFocus = null;
+
+  // Src is assigned as a property rather than built into markup, so a URL can
+  // never become anything but a URL.
+  function showMedia(w) {
+    lbVideo.pause();
+    if (w.video) {
+      lbVideo.src = w.video;
+      lbVideo.poster = w.img;
+      lbVideo.hidden = false;
+      lbImg.hidden = true;
+      lbImg.removeAttribute('src');
+      return;
+    }
+    lbVideo.removeAttribute('src');
+    lbVideo.load();          // Drops the previous clip so it stops buffering.
+    lbVideo.hidden = true;
+    lbImg.hidden = false;
+    lbImg.src = w.img;
+  }
 
   function showAt(i) {
     lbIdx = (i + shown.length) % shown.length;
     var w = shown[lbIdx];
-    lbImg.src = w.img;
+    showMedia(w);
     lbImg.alt = w.title;
     lb.querySelector('.lb-cat').textContent = w.cat;
     lb.querySelector('.lb-title').textContent = w.title;
@@ -159,7 +181,11 @@
 
   function closeLightbox() {
     lb.hidden = true;
-    lbImg.src = '';
+    lbImg.removeAttribute('src');
+    // Without this the audio keeps playing behind the closed overlay.
+    lbVideo.pause();
+    lbVideo.removeAttribute('src');
+    lbVideo.load();
     document.body.style.overflow = '';
     if (lastFocus) lastFocus.focus();
   }
@@ -173,6 +199,8 @@
   document.addEventListener('keydown', function (e) {
     if (lb.hidden) return;
     if (e.key === 'Escape') closeLightbox();
+    // Let the player have the arrow keys while it is focused, so seeking works.
+    else if (document.activeElement === lbVideo) return;
     else if (e.key === 'ArrowLeft') showAt(lbIdx - 1);
     else if (e.key === 'ArrowRight') showAt(lbIdx + 1);
   });
@@ -202,7 +230,11 @@
       // Anything outside the upload folder means a tampered or hand-edited
       // file; refuse it rather than letting an arbitrary URL into src.
       w.img.indexOf('images/uploads/') === 0 &&
-      w.title && w.sub && known[w.cat] === 1;
+      w.title && w.sub && known[w.cat] === 1 &&
+      // Videos are hosted off-site, so the path check above cannot apply. An
+      // https URL is the floor; the endpoint that writes this file is what
+      // actually constrains which host it points at.
+      (w.video === undefined || (typeof w.video === 'string' && w.video.indexOf('https://') === 0));
   }
 
   function start() {
